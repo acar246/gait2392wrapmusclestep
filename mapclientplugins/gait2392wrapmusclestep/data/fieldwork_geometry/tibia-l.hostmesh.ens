@@ -1,0 +1,11 @@
+{
+    "basis": {
+        "quad444": "quad_L3_L3_L3"
+    }, 
+    "custom_map": null, 
+    "dimensions": 3, 
+    "mesh": "tibia-l.hostmesh", 
+    "name": "host", 
+    "subfield_counter": 0, 
+    "subfields": {}
+}
