@@ -84,11 +84,31 @@
       <item row="6" column="0">
        <widget class="QLabel" name="label1">
         <property name="text">
-         <string>Output folder:</string>
+         <string>Subject Height (m):</string>
         </property>
        </widget>
       </item>
       <item row="6" column="1">
+       <widget class="QLineEdit" name="lineEdit1"/>
+      </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="label1">
+        <property name="text">
+         <string>Subject Mass (kg):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1">
+       <widget class="QLineEdit" name="lineEdit2"/>
+      </item>
+      <item row="8" column="0">
+       <widget class="QLabel" name="label1">
+        <property name="text">
+         <string>Output folder:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
          <widget class="QLineEdit" name="lineEdit_osim_output_dir"/>
@@ -133,6 +153,8 @@
  </widget>
  <tabstops>
   <tabstop>lineEdit0</tabstop>
+  <tabstop>lineEdit1</tabstop>
+  <tabstop>lineEdit2</tabstop>
   <tabstop>comboBox_in_unit</tabstop>
   <tabstop>comboBox_out_unit</tabstop>
   <tabstop>checkBox_write_osim_file</tabstop>

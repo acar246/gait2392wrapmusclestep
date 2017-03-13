@@ -3,6 +3,7 @@ import os
 from PySide import QtGui
 from mapclientplugins.gait2392wrapmusclestep.ui_configuredialog import Ui_ConfigureDialog
 from mapclientplugins.gait2392wrapmusclestep.gait2392musclecusthmf import VALID_UNITS
+import pdb
 
 INVALID_STYLE_SHEET = 'background-color: rgba(239, 0, 0, 50)'
 DEFAULT_STYLE_SHEET = ''
@@ -39,6 +40,8 @@ class ConfigureDialog(QtGui.QDialog):
 
     def _makeConnections(self):
         self._ui.lineEdit0.textChanged.connect(self.validate)
+        self._ui.lineEdit1.textChanged.connect(self.validate)
+        self._ui.lineEdit2.textChanged.connect(self.validate)
         self._ui.lineEdit_osim_output_dir.textChanged.connect(self._osimOutputDirEdited)
         self._ui.pushButton_osim_output_dir.clicked.connect(self._osimOutputDirClicked)
 
@@ -70,7 +73,7 @@ class ConfigureDialog(QtGui.QDialog):
             self._ui.lineEdit0.setStyleSheet(DEFAULT_STYLE_SHEET)
         else:
             self._ui.lineEdit0.setStyleSheet(INVALID_STYLE_SHEET)
-
+            
         osimOutputDirValid = os.path.exists(self._ui.lineEdit_osim_output_dir.text())
         if osimOutputDirValid:
             self._ui.lineEdit_osim_output_dir.setStyleSheet(DEFAULT_STYLE_SHEET)
@@ -88,9 +91,12 @@ class ConfigureDialog(QtGui.QDialog):
         set the _previousIdentifier value so that we can check uniqueness of the
         identifier over the whole of the workflow.
         '''
+        
         self._previousIdentifier = self._ui.lineEdit0.text()
         config = {}
         config['identifier'] = self._ui.lineEdit0.text()
+        config['subject_height'] = self._ui.lineEdit1.text()
+        config['subject_mass'] = self._ui.lineEdit2.text()
         config['osim_output_dir'] = self._ui.lineEdit_osim_output_dir.text()
         config['in_unit'] = self._ui.comboBox_in_unit.currentText()
         config['out_unit'] = self._ui.comboBox_out_unit.currentText()
@@ -114,8 +120,11 @@ class ConfigureDialog(QtGui.QDialog):
         set the _previousIdentifier value so that we can check uniqueness of the
         identifier over the whole of the workflow.
         '''
+        
         self._previousIdentifier = config['identifier']
         self._ui.lineEdit0.setText(config['identifier'])
+        self._ui.lineEdit1.setText(config['subject_height'])
+        self._ui.lineEdit2.setText(config['subject_mass'])
         self._previousOsimOutputDir = config['osim_output_dir']
         self._ui.lineEdit_osim_output_dir.setText(config['osim_output_dir'])
         self._ui.comboBox_in_unit.setCurrentIndex(

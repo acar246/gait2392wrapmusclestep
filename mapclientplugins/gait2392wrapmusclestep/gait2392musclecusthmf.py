@@ -11,6 +11,11 @@ from gias2.common import transform3D
 from gias2.registration import alignment_fitting as af
 from gias2.musculoskeletal.bonemodels import bonemodels
 from gias2.musculoskeletal import osim
+import muscleVolumeCalculator
+import re
+import math
+
+import pdb
 
 SELF_DIRECTORY = os.path.split(__file__)[0]
 DATA_DIR = os.path.join(SELF_DIRECTORY, 'data/fieldwork_geometry')
@@ -597,6 +602,9 @@ class gait2392MuscleCustomiser(object):
                 postscale_muscle_tsl[mn]
                 )
             )
+		
+		#update the maximum isometric muscle forces
+        self.updateMaxIsoForces()
 
         if self.config['write_osim_file']:
             self.write_cust_osim_model()
@@ -628,5 +636,108 @@ class gait2392MuscleCustomiser(object):
             ]
         for m in self.gias_osimmodel.muscles.values():
             m.postScale(state_1, *scale_factors)
-
-
+	
+    def updateMaxIsoForces(self):
+		
+		osimModel = self.gias_osimmodel
+		subjectHeight = float(self.config['subject_height'])
+		subjectMass = float(self.config['subject_mass'])
+	
+		# calculate muscle volumes using Handsfield (2014)
+		osimAbbr, muscleVolume = muscleVolumeCalculator.muscleVolumeCalculator(subjectHeight,subjectMass)
+		
+		# load Opensim model muscle set
+		allMuscles = osimModel._model.getMuscles()
+		
+		allMusclesNames = range(allMuscles.getSize());
+		oldValue = np.zeros([allMuscles.getSize(),1]);
+		optimalFibreLength = np.zeros([allMuscles.getSize(),1]);
+		penAngleAtOptFibLength = np.zeros([allMuscles.getSize(),1]);
+		
+		for i in range(allMuscles.getSize()):
+			allMusclesNames[i] = allMuscles.get(i).getName()
+			oldValue[i] = allMuscles.get(i).getMaxIsometricForce()
+			optimalFibreLength[i] = allMuscles.get(i).getOptimalFiberLength()
+			penAngleAtOptFibLength[i] = np.rad2deg(allMuscles.get(i).getPennationAngleAtOptimalFiberLength())
+		
+		# convert opt. fibre length from [m] to [cm] to match volume units
+		# [cm^3]
+		optimalFibreLength *= 100;
+		
+		allMusclesNamesCut = range(allMuscles.getSize())
+		for i in range(len(allMusclesNames)):
+			# delete trailing '_r' or '_l'
+			currMuscleName = allMusclesNames[i][0:-2];
+			
+			# split the name from any digit in its name and only keep the first
+			# string.
+			currMuscleName = re.split('(\d+)',currMuscleName)
+			currMuscleName = currMuscleName[0]
+			
+			# store in cell
+			allMusclesNamesCut[i] = currMuscleName
+		
+		# calculate ratio of old max isometric forces for multiple-lines-of-action muscles.
+		newAbsVolume = np.zeros([allMuscles.getSize(),1]);
+		fracOfGroup = np.zeros([allMuscles.getSize(),1]);
+		
+		for i in range(allMuscles.getSize()):
+			
+			currMuscleName = allMusclesNamesCut[i]
+			currIndex = [ j for j, x in enumerate(osimAbbr) if x==currMuscleName]
+			#currIndex = osimAbbr.index(currMuscleName)
+			if currIndex:
+				currValue = muscleVolume[currIndex];
+				newAbsVolume[i] = currValue;
+			
+			# The peroneus longus/brevis and the extensors (EDL, EHL) have
+			# to be treated seperatly as they are represented as a combined muscle
+			# group in Handsfield, 2014. The following method may not be the best!
+			if currMuscleName == 'per_brev' or currMuscleName == 'per_long':
+				currMuscleNameIndex = np.array([0,0])
+				tmpIndex = [ j for j, x in enumerate(allMusclesNamesCut) if x=='per_brev']
+				currMuscleNameIndex[0] = tmpIndex[0]
+				tmpIndex = [ j for j, x in enumerate(allMusclesNamesCut) if x=='per_long']
+				currMuscleNameIndex[1] = tmpIndex[0]
+				
+				currIndex = [ j for j, x in enumerate(osimAbbr) if x=='per_']
+				currValue = muscleVolume[currIndex]
+				newAbsVolume[i] = currValue;
+				
+			elif currMuscleName == 'ext_dig' or currMuscleName == 'ext_hal':
+				currMuscleNameIndex = np.array([0,0])
+				tmpIndex = [ j for j, x in enumerate(allMusclesNamesCut) if x=='ext_dig']
+				currMuscleNameIndex[0] = tmpIndex[0]
+				tmpIndex = [ j for j, x in enumerate(allMusclesNamesCut) if x=='ext_hal']
+				currMuscleNameIndex[1] = tmpIndex[0]
+				
+				currIndex = [ j for j, x in enumerate(osimAbbr) if x=='ext_']
+				currValue = muscleVolume[currIndex]
+				newAbsVolume[i] = currValue
+			else:
+				#find all instances of each muscle
+				currMuscleNameIndex = [ j for j, x in enumerate(allMusclesNamesCut) if x==currMuscleName]
+				#only require half of the results as we only need muscles from one side
+				currMuscleNameIndex = currMuscleNameIndex[0:len(currMuscleNameIndex)/2]
+			
+			#find how much of the total muscle volume this muscle contributes	
+			fracOfGroup[i] = oldValue[i]/sum(oldValue[currMuscleNameIndex]);
+			
+		# calculate new maximal isometric muscle forces
+		
+		specificTension = 61 # N/cm^2 from Zajac 1989
+		newVolume = fracOfGroup*newAbsVolume;
+		#maxIsoMuscleForce = specificTension * (newVolume/optimalFibreLength) * np.cos(math.degrees(penAngleAtOptFibLength))
+			
+		# Update muscles of loaded model (in workspace only!), change model name and print new osim file.
+		maxIsoMuscleForce = np.zeros([allMuscles.getSize(),1])
+		for i in range(allMuscles.getSize()):
+			maxIsoMuscleForce[i] = specificTension * (newVolume[i]/optimalFibreLength[i]) * np.cos(math.radians(penAngleAtOptFibLength[i]))
+		
+			# only update, if new value is not zero. Else do not override the
+			# original value.
+			if maxIsoMuscleForce[i] != 0:
+				allMuscles.get(i).setMaxIsometricForce(maxIsoMuscleForce[i][0]);
+		
+	
+	
